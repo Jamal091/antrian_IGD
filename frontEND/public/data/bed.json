@@ -1,0 +1,64 @@
+{
+    "bed": [
+        {
+            "nama": "Bangsal Umum",
+            "status": "Tersedia",
+            "tipeKamar": "Standar",
+            "nomorKamar": "101"
+        },
+        {
+            "nama": "ICU",
+            "status": "Terisi",
+            "tipeKamar": "Kritis",
+            "nomorKamar": "102"
+        },
+        {
+            "nama": "Bangsal Anak",
+            "status": "Tersedia",
+            "tipeKamar": "Anak",
+            "nomorKamar": "103"
+        },
+        {
+            "nama": "Bangsal Bersalin",
+            "status": "Tersedia",
+            "tipeKamar": "Bersalin",
+            "nomorKamar": "104"
+        },
+        {
+            "nama": "Bangsal Isolasi",
+            "status": "Terisi",
+            "tipeKamar": "Isolasi",
+            "nomorKamar": "105"
+        },
+        {
+            "nama": "Bangsal Bedah",
+            "status": "Tersedia",
+            "tipeKamar": "Bedah",
+            "nomorKamar": "106"
+        },
+        {
+            "nama": "Ruang Darurat",
+            "status": "Terisi",
+            "tipeKamar": "Darurat",
+            "nomorKamar": "107"
+        },
+        {
+            "nama": "Bangsal Psikiatri",
+            "status": "Tersedia",
+            "tipeKamar": "Psikiatri",
+            "nomorKamar": "108"
+        },
+        {
+            "nama": "Bangsal Rehabilitasi",
+            "status": "Tersedia",
+            "tipeKamar": "Rehabilitasi",
+            "nomorKamar": "109"
+        },
+        {
+            "nama": "Bangsal Onkologi",
+            "status": "Terisi",
+            "tipeKamar": "Perawatan Kanker",
+            "nomorKamar": "110"
+        }
+    ]
+}

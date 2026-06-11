@@ -1,0 +1,34 @@
+{
+    "data": [
+        {
+            "name": "Dashboard",
+            "href": "/",
+            "icon": "0"
+        },
+        {
+            "name": "Users",
+            "href": "/users",
+            "icon": "4"
+        },
+        {
+            "name": "Settings",
+            "href": "/settings",
+            "icon": "2"
+        },
+        {
+            "name": "Notifications",
+            "href": "/notifications",
+            "icon": "5"
+        },
+        {
+            "name": "Messages",
+            "href": "/messages",
+            "icon": "3"
+        },
+        {
+            "name": "Reports",
+            "href": "/reports",
+            "icon": "6"
+        }
+    ]
+}
