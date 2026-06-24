@@ -5,19 +5,35 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { Lock, User, LogIn } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { findLoketAccount } from '@/utils/loketAccounts';
+import { withBasePath } from '@/utils/basePath';
 
 export default function LoginPage() {
     const router = useRouter();
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
+    const [errorMessage, setErrorMessage] = useState('');
 
     const handleLogin = (e) => {
         e.preventDefault();
         setLoading(true);
-        // Simulate login delay
+        setErrorMessage('');
+
         setTimeout(() => {
+            const account = findLoketAccount(username, password);
             setLoading(false);
+
+            if (!account) {
+                setErrorMessage('Username atau password tidak sesuai');
+                return;
+            }
+
+            window.sessionStorage.setItem('callerSession', JSON.stringify({
+                username: account.username,
+                name: account.name,
+                counterName: account.counterName,
+            }));
             router.push('/caller');
         }, 1000);
     };
@@ -35,10 +51,15 @@ export default function LoginPage() {
             >
                 <div className="flex flex-col items-center mb-8">
                     <div className="bg-white p-3 rounded-2xl shadow-sm mb-4 border border-gray-100">
-                        <Image src="/RSUP.png" alt="Logo RSUP Makassar" width={200} height={60} priority className="w-40 sm:w-48 h-auto" />
+                        <Image src={withBasePath('/RSUP.png')} alt="Logo RSUP Makassar" width={200} height={60} priority className="w-40 sm:w-48 h-auto" />
                     </div>
                     <h1 className="text-2xl font-bold text-gray-800 text-center">Login Sistem Antrian</h1>
                     <p className="text-sm font-semibold text-[#00b7ad] mt-1 text-center uppercase tracking-wide">Instalasi Gawat Darurat</p>
+                    {errorMessage && (
+                        <p className="mt-4 text-sm font-bold text-red-600 bg-red-50 border border-red-100 px-4 py-2 rounded-xl text-center">
+                            {errorMessage}
+                        </p>
+                    )}
                 </div>
 
                 <form onSubmit={handleLogin} className="space-y-5">

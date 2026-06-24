@@ -3,6 +3,7 @@ import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import { Clock, Maximize, LogOut } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { withBasePath } from "@/utils/basePath";
 
 const Header = ({ 
     title = "RSUP MAKASSAR", 
@@ -10,9 +11,10 @@ const Header = ({
     onLogout
 }) => {
     const router = useRouter();
-    const [currentTime, setCurrentTime] = useState(new Date());
+    const [currentTime, setCurrentTime] = useState(null);
 
     useEffect(() => {
+        setCurrentTime(new Date());
         const timer = setInterval(() => {
             setCurrentTime(new Date());
         }, 1000);
@@ -50,9 +52,13 @@ const Header = ({
     const days = ['MINGGU', 'SENIN', 'SELASA', 'RABU', 'KAMIS', 'JUMAT', 'SABTU'];
     const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
     
-    const dayName = days[currentTime.getDay()];
-    const dateText = `${currentTime.getDate()} ${months[currentTime.getMonth()]} ${currentTime.getFullYear()}`;
-    const timeText = `${String(currentTime.getHours()).padStart(2, '0')}.${String(currentTime.getMinutes()).padStart(2, '0')}`;
+    const dayName = currentTime ? days[currentTime.getDay()] : '';
+    const dateText = currentTime
+        ? `${currentTime.getDate()} ${months[currentTime.getMonth()]} ${currentTime.getFullYear()}`
+        : '';
+    const timeText = currentTime
+        ? `${String(currentTime.getHours()).padStart(2, '0')}.${String(currentTime.getMinutes()).padStart(2, '0')}`
+        : '--.--';
 
     return (
         <>
@@ -60,7 +66,7 @@ const Header = ({
             <div className="w-full px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between py-5 sm:py-6 gap-4">
                 {/* Left side: Logo & Title */}
                 <div className="flex items-center gap-4">
-                    <Image src="/RSUP.png" alt="Logo" width={150} height={45} className="w-auto h-10 sm:h-12" priority />
+                    <Image src={withBasePath('/RSUP.png')} alt="Logo" width={150} height={45} className="w-auto h-10 sm:h-12" priority />
                     <div className="hidden sm:block h-10 w-px bg-gray-300 mx-1" />
                     <div className="flex flex-col justify-center">
                         <h1 className="text-base sm:text-xl font-bold text-gray-900 leading-tight tracking-wide">{title}</h1>

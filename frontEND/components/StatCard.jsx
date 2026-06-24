@@ -1,5 +1,6 @@
 import React from "react";
 import { motion } from "framer-motion";
+import { withBasePath } from "@/utils/basePath";
 
 const StatCard = ({ name, icon: Icon, value, background, value1, value2, value3, backgroundImage }) => {
     return (
@@ -7,7 +8,7 @@ const StatCard = ({ name, icon: Icon, value, background, value1, value2, value3,
             whileHover={{ y: -5, boxShadow: "0 25px 50px -12px rgb(255, 255, 255)" }}
             className={`${background} backdrop-blur-md overflow-hidden shadow-lg rounded-xl border border-[#38b6ff] relative`}
             style={{
-                backgroundImage: backgroundImage ? `url(${backgroundImage})` : 'none',
+                backgroundImage: backgroundImage ? `url(${withBasePath(backgroundImage)})` : 'none',
                 backgroundSize: 'cover',
                 backgroundPosition: 'center',
                 backgroundRepeat: 'no-repeat'

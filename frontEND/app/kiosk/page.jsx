@@ -5,15 +5,17 @@ import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Printer, LogOut, Maximize, Pill, FlaskConical, Clock, HandMetal, Pointer, HeartPulse, Siren } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { createTicket } from '@/utils/antrianApi';
+import { withBasePath } from '@/utils/basePath';
 
 export default function KioskPage() {
     const router = useRouter();
-    const [currentTime, setCurrentTime] = useState(new Date());
+    const [currentTime, setCurrentTime] = useState(null);
     const [printingTicket, setPrintingTicket] = useState(null);
-
-    const [counters, setCounters] = useState({ IGD: 1, EMERGENCY: 1 });
+    const [errorMessage, setErrorMessage] = useState('');
 
     useEffect(() => {
+        setCurrentTime(new Date());
         const timer = setInterval(() => setCurrentTime(new Date()), 1000);
         return () => clearInterval(timer);
     }, []);
@@ -37,30 +39,40 @@ export default function KioskPage() {
         router.push('/');
     };
 
-    const handleTakeQueue = (type) => {
-        const currentCount = counters[type];
-        const prefix = type === 'IGD' ? 'I-' : 'E-';
-        const ticketNumber = `${prefix}${String(currentCount).padStart(3, '0')}`;
+    const handleTakeQueue = async (type) => {
+        if (printingTicket) return;
 
-        setCounters(prev => ({ ...prev, [type]: prev[type] + 1 }));
+        setErrorMessage('');
+        setPrintingTicket(type);
 
-        const timestamp = new Date().getTime();
-        window.open(`/kiosk/print?type=${type}&number=${ticketNumber}&time=${timestamp}`, '_blank');
+        try {
+            const ticket = await createTicket(type);
+            const timestamp = new Date(ticket.created_at || Date.now()).getTime();
+            window.open(withBasePath(`/kiosk/print?type=${ticket.type}&number=${ticket.number}&time=${timestamp}`), '_blank');
+        } catch (error) {
+            setErrorMessage(error.message || 'Gagal mengambil nomor antrean');
+        } finally {
+            setPrintingTicket(null);
+        }
     };
 
     const days = ['MINGGU', 'SENIN', 'SELASA', 'RABU', 'KAMIS', 'JUMAT', 'SABTU'];
     const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 
-    const dayName = days[currentTime.getDay()];
-    const dateText = `${currentTime.getDate()} ${months[currentTime.getMonth()]} ${currentTime.getFullYear()}`;
-    const timeText = `${String(currentTime.getHours()).padStart(2, '0')}.${String(currentTime.getMinutes()).padStart(2, '0')}`;
+    const dayName = currentTime ? days[currentTime.getDay()] : '';
+    const dateText = currentTime
+        ? `${currentTime.getDate()} ${months[currentTime.getMonth()]} ${currentTime.getFullYear()}`
+        : '';
+    const timeText = currentTime
+        ? `${String(currentTime.getHours()).padStart(2, '0')}.${String(currentTime.getMinutes()).padStart(2, '0')}`
+        : '--.--';
 
     return (
         <div className="min-h-screen bg-[#fafafa] flex flex-col relative overflow-hidden select-none font-sans">
             {/* Header */}
             <header className="bg-white px-6 py-4 flex justify-between items-center z-10 shadow-[0_2px_10px_rgba(0,0,0,0.02)]">
                 <div className="flex items-center gap-5">
-                    <Image src="/RSUP.png" alt="Logo" width={180} height={50} className="w-auto h-10" priority />
+                    <Image src={withBasePath('/RSUP.png')} alt="Logo" width={180} height={50} className="w-auto h-10" priority />
                     <div className="h-10 w-px bg-gray-200" />
                     <div className="flex flex-col justify-center">
                         <h1 className="text-sm sm:text-base font-extrabold text-[#1e293b] tracking-wide">RSUP MAKASSAR</h1>
@@ -94,6 +106,11 @@ export default function KioskPage() {
                     </div>
                     <h2 className="text-4xl sm:text-[2.75rem] font-black text-[#0f172a] mb-4 tracking-tight">Selamat Datang</h2>
                     <p className="text-base text-gray-500 font-medium">Silakan sentuh tombol di bawah sesuai dengan jenis layanan Anda.</p>
+                    {errorMessage && (
+                        <p className="mt-4 text-sm font-bold text-red-600 bg-red-50 border border-red-100 px-4 py-2 rounded-xl">
+                            {errorMessage}
+                        </p>
+                    )}
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12 w-full max-w-4xl px-4">
@@ -110,8 +127,11 @@ export default function KioskPage() {
                         <h3 className="text-2xl font-black text-[#0f172a] mb-3">PASIEN IGD</h3>
                         <p className="text-sm text-gray-400 font-medium mb-10 px-4">Pendaftaran Pasien Reguler.</p>
 
-                        <button className="w-full bg-[#10b981] hover:bg-[#059669] text-white py-4 rounded-2xl font-bold text-sm tracking-wide shadow-lg shadow-emerald-500/25 transition-all flex items-center justify-center gap-3">
-                            AMBIL ANTREAN IGD
+                        <button
+                            disabled={Boolean(printingTicket)}
+                            className="w-full bg-[#10b981] hover:bg-[#059669] text-white py-4 rounded-2xl font-bold text-sm tracking-wide shadow-lg shadow-emerald-500/25 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-wait"
+                        >
+                            {printingTicket === 'IGD' ? 'MENCETAK...' : 'AMBIL ANTREAN IGD'}
                         </button>
                     </motion.div>
 
@@ -128,8 +148,11 @@ export default function KioskPage() {
                         <h3 className="text-2xl font-black text-[#0f172a] mb-3">PASIEN EMERGENCY</h3>
                         <p className="text-sm text-gray-400 font-medium mb-10 px-4">Pendaftaran Pasien Darurat.</p>
 
-                        <button className="w-full bg-[#ef4444] hover:bg-[#dc2626] text-white py-4 rounded-2xl font-bold text-sm tracking-wide shadow-lg shadow-red-500/25 transition-all flex items-center justify-center gap-3">
-                            AMBIL ANTREAN EMERGENCY
+                        <button
+                            disabled={Boolean(printingTicket)}
+                            className="w-full bg-[#ef4444] hover:bg-[#dc2626] text-white py-4 rounded-2xl font-bold text-sm tracking-wide shadow-lg shadow-red-500/25 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-wait"
+                        >
+                            {printingTicket === 'EMERGENCY' ? 'MENCETAK...' : 'AMBIL ANTREAN EMERGENCY'}
                         </button>
                     </motion.div>
                 </div>

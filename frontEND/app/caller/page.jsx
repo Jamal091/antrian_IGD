@@ -12,35 +12,14 @@ import {
 import ConfirmModal from '@/components/ConfirmModal';
 import LogoutModal from '@/components/LogoutModal';
 import Header from '@/components/Header';
-
-// ── Dummy data generator (Admisi IGD) ─────────────────────────
-const generateInitialWaiting = () => {
-    const now = new Date();
-    const igd = [];
-    const emergency = [];
-
-    for (let i = 1; i <= 8; i++) {
-        const time = new Date(now.getTime() + i * 3 * 60000);
-        igd.push({
-            id: `I-${i}`,
-            number: `I-${String(i).padStart(3, '0')}`,
-            time: `${String(time.getHours()).padStart(2, '0')}:${String(time.getMinutes()).padStart(2, '0')}`,
-        });
-    }
-
-    for (let i = 1; i <= 3; i++) {
-        const time = new Date(now.getTime() + i * 2 * 60000);
-        emergency.push({
-            id: `E-${i}`,
-            number: `E-${String(i).padStart(3, '0')}`,
-            time: `${String(time.getHours()).padStart(2, '0')}:${String(time.getMinutes()).padStart(2, '0')}`,
-        });
-    }
-
-    return { IGD: igd, EMERGENCY: emergency };
-};
-
-import { playQueueAudio } from '@/utils/audioQueue';
+import {
+    callAutoTicket,
+    callNextTicket,
+    callSpecificTicket,
+    getCallLockStatus,
+    getWaitingTickets,
+    recallTicket,
+} from '@/utils/antrianApi';
 
 // ── Notification Toast Component ──────────────────────────────
 function NotificationToast({ message, onDone }) {
@@ -65,11 +44,19 @@ function NotificationToast({ message, onDone }) {
 // ── Main Caller Page ──────────────────────────────────────────
 export default function CallerPage() {
     const router = useRouter();
-    const myCounter = 'Loket Admisi IGD'; // Simulated counter name
+    const [callerSession, setCallerSession] = useState(null);
+    const [sessionReady, setSessionReady] = useState(false);
+    const myCounter = callerSession?.counterName || '';
 
     const [waitingList, setWaitingList] = useState({ IGD: [], EMERGENCY: [] });
     const [currentCall, setCurrentCall] = useState({ number: null, type: null });
     const [loading, setLoading] = useState(false);
+    const [callLock, setCallLock] = useState({
+        is_locked: false,
+        locked_by: null,
+        remaining_ms: 0,
+        lock_duration_ms: 12000,
+    });
     const [notification, setNotification] = useState('');
     const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
     const [confirmConfig, setConfirmConfig] = useState({
@@ -81,10 +68,28 @@ export default function CallerPage() {
         onConfirm: () => {},
     });
 
-    // Initialize dummy data
     useEffect(() => {
-        setWaitingList(generateInitialWaiting());
-    }, []);
+        const savedSession = window.sessionStorage.getItem('callerSession');
+
+        if (!savedSession) {
+            router.push('/');
+            return;
+        }
+
+        try {
+            const parsedSession = JSON.parse(savedSession);
+            if (!parsedSession?.counterName) {
+                router.push('/');
+                return;
+            }
+
+            setCallerSession(parsedSession);
+            setSessionReady(true);
+        } catch {
+            window.sessionStorage.removeItem('callerSession');
+            router.push('/');
+        }
+    }, [router]);
 
     // ── Notification handler ──────────────────────────────────
     const showNotification = useCallback((msg) => {
@@ -95,77 +100,129 @@ export default function CallerPage() {
         setNotification('');
     }, []);
 
-    // ── Call next in queue ────────────────────────────────────
-    const handleCallNext = useCallback((type) => {
-        setLoading(true);
+    const syncCallLock = useCallback((data) => {
+        if (data?.call_lock) {
+            setCallLock(data.call_lock);
+        }
+    }, []);
 
-        setTimeout(() => {
-            setWaitingList((prev) => {
-                const list = [...(prev[type] || [])];
-                if (list.length === 0) {
-                    showNotification('Tidak ada antrian menunggu');
-                    setLoading(false);
-                    return prev;
-                }
+    const loadCallLock = useCallback(async () => {
+        try {
+            const data = await getCallLockStatus();
+            setCallLock(data);
+        } catch {
+            // Keep the last known lock state if the short polling request fails.
+        }
+    }, []);
 
-                const called = list.shift();
-                setCurrentCall({ number: called.number, type });
-                showNotification(`Memanggil Antrian ${called.number}`);
-                
-                // Play audio
-                playQueueAudio(called.number, 'admisi1');
-
-                return { ...prev, [type]: list };
+    const loadWaitingList = useCallback(async () => {
+        try {
+            const data = await getWaitingTickets();
+            setWaitingList({
+                IGD: data.IGD || [],
+                EMERGENCY: data.EMERGENCY || [],
             });
-            setLoading(false);
-        }, 300);
+        } catch (error) {
+            showNotification(error.message || 'Gagal memuat daftar antrean');
+        }
     }, [showNotification]);
 
-    // ── Auto call (Emergency first, then IGD) ────────────────
-    const handleCallAuto = useCallback(() => {
-        if (waitingList.EMERGENCY?.length > 0) {
-            handleCallNext('EMERGENCY');
-        } else if (waitingList.IGD?.length > 0) {
-            handleCallNext('IGD');
-        } else {
-            showNotification('Tidak ada antrian menunggu');
+    useEffect(() => {
+        if (!sessionReady) return undefined;
+
+        loadWaitingList();
+        const interval = setInterval(loadWaitingList, 3000);
+        return () => clearInterval(interval);
+    }, [loadWaitingList, sessionReady]);
+
+    useEffect(() => {
+        if (!sessionReady) return undefined;
+
+        loadCallLock();
+        const interval = setInterval(loadCallLock, 1000);
+        return () => clearInterval(interval);
+    }, [loadCallLock, sessionReady]);
+
+    // ── Call next in queue ────────────────────────────────────
+    const handleCallNext = useCallback(async (type) => {
+        setLoading(true);
+
+        try {
+            const data = await callNextTicket(type, myCounter);
+            syncCallLock(data);
+            setCurrentCall(data.ticket);
+            showNotification(`Memanggil Antrian ${data.ticket.number}`);
+            await loadWaitingList();
+        } catch (error) {
+            syncCallLock(error.data);
+            showNotification(error.message || 'Tidak ada antrian menunggu');
+        } finally {
+            setLoading(false);
         }
-    }, [waitingList, handleCallNext, showNotification]);
+    }, [loadWaitingList, myCounter, showNotification, syncCallLock]);
+
+    // ── Auto call (Emergency first, then IGD) ────────────────
+    const handleCallAuto = useCallback(async () => {
+        setLoading(true);
+
+        try {
+            const data = await callAutoTicket(myCounter);
+            syncCallLock(data);
+            setCurrentCall(data.ticket);
+            showNotification(`Memanggil Antrian ${data.ticket.number}`);
+            await loadWaitingList();
+        } catch (error) {
+            syncCallLock(error.data);
+            showNotification(error.message || 'Tidak ada antrian menunggu');
+        } finally {
+            setLoading(false);
+        }
+    }, [loadWaitingList, myCounter, showNotification, syncCallLock]);
 
     // ── Recall current number ────────────────────────────────
-    const handleRecall = useCallback(() => {
+    const handleRecall = useCallback(async () => {
         if (!currentCall.number) return;
         setLoading(true);
-        setTimeout(() => {
-            showNotification(`Memanggil Ulang ${currentCall.number}`);
-            playQueueAudio(currentCall.number, 'admisi1');
+
+        try {
+            const data = await recallTicket(currentCall, myCounter);
+            syncCallLock(data);
+            setCurrentCall(data.ticket);
+            showNotification(`Memanggil Ulang ${data.ticket.number}`);
+        } catch (error) {
+            syncCallLock(error.data);
+            showNotification(error.message || 'Gagal memanggil ulang');
+        } finally {
             setLoading(false);
-        }, 300);
-    }, [currentCall, showNotification]);
+        }
+    }, [currentCall, myCounter, showNotification, syncCallLock]);
 
     // ── Call specific ticket ─────────────────────────────────
-    const handleCallSpecific = useCallback((ticketNumber, type) => {
+    const handleCallSpecific = useCallback((ticket) => {
         setConfirmConfig({
             isOpen: true,
             title: 'Panggil Antrian',
-            message: `Panggil nomor ${ticketNumber} sekarang?`,
+            message: `Panggil nomor ${ticket.number} sekarang?`,
             icon: 'campaign',
             color: 'blue',
-            onConfirm: () => {
+            onConfirm: async () => {
                 setLoading(true);
-                setTimeout(() => {
-                    setWaitingList((prev) => {
-                        const list = (prev[type] || []).filter((t) => t.number !== ticketNumber);
-                        return { ...prev, [type]: list };
-                    });
-                    setCurrentCall({ number: ticketNumber, type });
-                    showNotification(`Memanggil Manual ${ticketNumber}`);
-                    playQueueAudio(ticketNumber, 'admisi1');
+
+                try {
+                    const data = await callSpecificTicket(ticket, myCounter);
+                    syncCallLock(data);
+                    setCurrentCall(data.ticket);
+                    showNotification(`Memanggil Manual ${data.ticket.number}`);
+                    await loadWaitingList();
+                } catch (error) {
+                    syncCallLock(error.data);
+                    showNotification(error.message || 'Gagal memanggil antrean');
+                } finally {
                     setLoading(false);
-                }, 300);
+                }
             },
         });
-    }, [showNotification]);
+    }, [loadWaitingList, myCounter, showNotification, syncCallLock]);
 
     // ── Close confirm modal ──────────────────────────────────
     const closeConfirm = useCallback(() => {
@@ -174,6 +231,7 @@ export default function CallerPage() {
 
     // ── Logout ───────────────────────────────────────────────
     const handleLogoutConfirm = useCallback(() => {
+        window.sessionStorage.removeItem('callerSession');
         router.push('/');
     }, [router]);
 
@@ -181,13 +239,24 @@ export default function CallerPage() {
     const igdCount = waitingList.IGD?.length || 0;
     const emergencyCount = waitingList.EMERGENCY?.length || 0;
     const totalWaiting = igdCount + emergencyCount;
+    const isCallLocked = Boolean(callLock?.is_locked);
+    const callLockSeconds = Math.ceil((callLock?.remaining_ms || 0) / 1000);
+    const callLockOwner = callLock?.locked_by || 'loket lain';
+
+    if (!sessionReady) {
+        return (
+            <div className="min-h-screen bg-[#f0f5f5] flex items-center justify-center">
+                <div className="w-10 h-10 border-4 border-[#00b7ad] border-t-transparent rounded-full animate-spin" />
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-[#f0f5f5] relative">
             {/* ── Header ─────────────────────────────────────── */}
             <Header 
                 title="RSUP MAKASSAR"
-                subtitle="PANEL PETUGAS ADMISI IGD"
+                subtitle={`PANEL PETUGAS ${myCounter.toUpperCase()}`}
                 onLogout={() => setIsLogoutModalOpen(true)}
             />
 
@@ -197,6 +266,12 @@ export default function CallerPage() {
                     <NotificationToast message={notification} onDone={clearNotification} />
                 )}
             </AnimatePresence>
+
+            {isCallLocked && (
+                <div className="mx-4 sm:mx-6 mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-center text-sm font-bold text-amber-700">
+                    Pemanggilan sedang berlangsung di {callLockOwner}. Tombol aktif kembali dalam {callLockSeconds} detik.
+                </div>
+            )}
 
             {/* ── Main Content ────────────────────────────────── */}
             <main className="w-full mx-auto p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
@@ -259,7 +334,7 @@ export default function CallerPage() {
                         <div className="grid grid-cols-2 gap-3 sm:gap-4 mt-5">
                             <button
                                 onClick={handleRecall}
-                                disabled={loading || !currentCall.number}
+                                disabled={loading || isCallLocked || !currentCall.number}
                                 className="flex items-center justify-center gap-2 py-3 bg-white border-2 border-gray-200 text-gray-700 rounded-xl font-bold hover:bg-gray-50 hover:border-gray-300 transition-all disabled:opacity-40 disabled:cursor-not-allowed text-sm sm:text-base"
                             >
                                 <RotateCcw size={18} />
@@ -267,7 +342,7 @@ export default function CallerPage() {
                             </button>
                             <button
                                 onClick={handleCallAuto}
-                                disabled={loading || totalWaiting === 0}
+                                disabled={loading || isCallLocked || totalWaiting === 0}
                                 className="flex items-center justify-center gap-2 py-3 bg-[#00b7ad] text-white rounded-xl font-bold hover:bg-[#009e95] transition-all shadow-lg shadow-[#00b7ad]/30 disabled:opacity-40 disabled:shadow-none disabled:cursor-not-allowed text-sm sm:text-base"
                             >
                                 <PlayCircle size={18} />
@@ -299,7 +374,7 @@ export default function CallerPage() {
                             </div>
                             <button
                                 onClick={() => handleCallNext('IGD')}
-                                disabled={loading || igdCount === 0}
+                                disabled={loading || isCallLocked || igdCount === 0}
                                 className="w-full py-3.5 bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-white rounded-xl font-bold shadow-lg shadow-emerald-500/25 transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:shadow-none disabled:cursor-not-allowed relative z-10 text-sm sm:text-base"
                             >
                                 <Play size={18} />
@@ -327,7 +402,7 @@ export default function CallerPage() {
                             </div>
                             <button
                                 onClick={() => handleCallNext('EMERGENCY')}
-                                disabled={loading || emergencyCount === 0}
+                                disabled={loading || isCallLocked || emergencyCount === 0}
                                 className="w-full py-3.5 bg-red-500 hover:bg-red-600 active:bg-red-700 text-white rounded-xl font-bold shadow-lg shadow-red-500/25 transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:shadow-none disabled:cursor-not-allowed relative z-10 text-sm sm:text-base"
                             >
                                 <Play size={18} />
@@ -388,8 +463,8 @@ export default function CallerPage() {
                                                 </div>
                                             </div>
                                             <button
-                                                onClick={() => handleCallSpecific(ticket.number, 'EMERGENCY')}
-                                                disabled={loading}
+                                                onClick={() => handleCallSpecific(ticket)}
+                                                disabled={loading || isCallLocked}
                                                 className="opacity-0 group-hover:opacity-100 px-2.5 py-1.5 bg-white border border-red-200 text-red-600 text-xs font-bold rounded-lg shadow-sm hover:bg-red-500 hover:text-white hover:border-red-500 transition-all transform scale-95 group-hover:scale-100"
                                             >
                                                 <Phone size={12} className="inline mr-1" />
@@ -430,8 +505,8 @@ export default function CallerPage() {
                                                 </div>
                                             </div>
                                             <button
-                                                onClick={() => handleCallSpecific(ticket.number, 'IGD')}
-                                                disabled={loading}
+                                                onClick={() => handleCallSpecific(ticket)}
+                                                disabled={loading || isCallLocked}
                                                 className="opacity-0 group-hover:opacity-100 px-2.5 py-1.5 bg-white border border-emerald-200 text-emerald-600 text-xs font-bold rounded-lg shadow-sm hover:bg-emerald-500 hover:text-white hover:border-emerald-500 transition-all transform scale-95 group-hover:scale-100"
                                             >
                                                 <Phone size={12} className="inline mr-1" />

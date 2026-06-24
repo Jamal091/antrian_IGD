@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
+import { withBasePath } from '@/utils/basePath';
 
 const images = [
     '/kamar3.jpg',
@@ -31,7 +32,7 @@ export default function Carousel() {
                 {images.map((src, idx) => (
                     <div key={idx} className="w-full flex-shrink-0">
                         <Image
-                            src={src}
+                            src={withBasePath(src)}
                             alt={`Slide ${idx}`}
                             width={800}
                             height={400}
