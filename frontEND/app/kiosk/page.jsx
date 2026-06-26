@@ -259,14 +259,11 @@ export default function KioskPage() {
                     </div>
                 )}
             </main>
-
             <footer className="py-2 sm:py-4 md:py-6 text-center z-10 shrink-0">
                 <p className="text-[8px] sm:text-[9px] md:text-[10px] font-bold text-gray-300 tracking-widest uppercase px-4 leading-relaxed">
-                    © 2026 RSUP MAKASSAR. ALL RIGHTS RESERVED.
+                    © 2026 SIMRS RSUP MAKASSAR. ALL RIGHTS RESERVED.
                 </p>
             </footer>
-
-
         </div>
     );
 }
