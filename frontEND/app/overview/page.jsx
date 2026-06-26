@@ -60,67 +60,67 @@ const Overview = () => {
             <div className="w-full mx-auto">
                 <Header />
 
-            <main className="w-full mx-auto py-4 px-4 lg:px-8 gap-4">
-                <motion.div
-                    className="grid grid-cols-2 gap-3 sm:grid-cols-4 mb-8"
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 1 }}
-                >
-                    <StatCard
-                        name="KRIS (BPJS)"
-                        icon={Bed}
-                        value={overviewData.jumlah_kamar_kelas}
-                        value1={overviewData.kamar_kelas_tersedia}
-                        value2={overviewData.kamar_kelas_terisi}
-                        value3={overviewData.kamar_kelas_terpesan}
-                        background={'bg-emerald-300'}
-                        backgroundImage={'/kamar4.jpg'}
-                    />
-                    <StatCard
-                        name="VIP"
-                        icon={Bed}
-                        value={overviewData.jumlah_kamar_vip}
-                        value1={overviewData.kamar_vip_tersedia}
-                        value2={overviewData.kamar_vip_terisi}
-                        value3={overviewData.kamar_vip_terpesan}
-                        background={'bg-sky-500'}
-                        backgroundImage={'/kamar3.jpg'}
-                    />
-                    <StatCard
-                        name="VVIP"
-                        icon={Bed}
-                        value={overviewData.jumlah_kamar_vvip}
-                        value1={overviewData.kamar_vvip_tersedia}
-                        value2={overviewData.kamar_vvip_terisi}
-                        value3={overviewData.kamar_vvip_terpesan}
-                        background={'bg-indigo-500'}
-                        backgroundImage={'/kamar2.jpg'}
-                    />
-                    <StatCard
-                        name="President Suite"
-                        icon={Bed}
-                        value={overviewData.jumlah_kamar_president}
-                        value1={overviewData.kamar_president_tersedia}
-                        value2={overviewData.kamar_president_terisi}
-                        value3={overviewData.kamar_president_terpesan}
-                        background={'bg-amber-500'}
-                        backgroundImage={'/kamar1.jpg'}
-                    />
+                <main className="w-full mx-auto py-4 px-4 lg:px-8 gap-4">
+                    <motion.div
+                        className="grid grid-cols-2 gap-3 sm:grid-cols-4 mb-8"
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 1 }}
+                    >
+                        <StatCard
+                            name="KRIS (BPJS)"
+                            icon={Bed}
+                            value={overviewData.jumlah_kamar_kelas}
+                            value1={overviewData.kamar_kelas_tersedia}
+                            value2={overviewData.kamar_kelas_terisi}
+                            value3={overviewData.kamar_kelas_terpesan}
+                            background={'bg-emerald-300'}
+                            backgroundImage={'/kamar4.jpg'}
+                        />
+                        <StatCard
+                            name="VIP"
+                            icon={Bed}
+                            value={overviewData.jumlah_kamar_vip}
+                            value1={overviewData.kamar_vip_tersedia}
+                            value2={overviewData.kamar_vip_terisi}
+                            value3={overviewData.kamar_vip_terpesan}
+                            background={'bg-sky-500'}
+                            backgroundImage={'/kamar3.jpg'}
+                        />
+                        <StatCard
+                            name="VVIP"
+                            icon={Bed}
+                            value={overviewData.jumlah_kamar_vvip}
+                            value1={overviewData.kamar_vvip_tersedia}
+                            value2={overviewData.kamar_vvip_terisi}
+                            value3={overviewData.kamar_vvip_terpesan}
+                            background={'bg-indigo-500'}
+                            backgroundImage={'/kamar2.jpg'}
+                        />
+                        <StatCard
+                            name="President Suite"
+                            icon={Bed}
+                            value={overviewData.jumlah_kamar_president}
+                            value1={overviewData.kamar_president_tersedia}
+                            value2={overviewData.kamar_president_terisi}
+                            value3={overviewData.kamar_president_terpesan}
+                            background={'bg-amber-500'}
+                            backgroundImage={'/kamar1.jpg'}
+                        />
 
-                </motion.div>
+                    </motion.div>
 
-                <motion.div className="grid grid-cols-1 gap-4 lg:grid-cols-3 mb-2">
-                    <div className="lg:col-span-1">
-                        <KamarTabel />
-                    </div>
-                    <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <QueueDisplay loketName="Loket 1 Admisi IGD" />
-                        <QueueDisplay loketName="Loket 2 Admisi IGD" />
-                    </div>
-                </motion.div>
+                    <motion.div className="grid grid-cols-1 gap-4 lg:grid-cols-3 mb-2">
+                        <div className="lg:col-span-1">
+                            <KamarTabel />
+                        </div>
+                        <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <QueueDisplay loketName="Loket IGD" />
+                            <QueueDisplay loketName="Loket Rawat Inap" />
+                        </div>
+                    </motion.div>
 
-            </main>
+                </main>
 
             </div>
         </div>

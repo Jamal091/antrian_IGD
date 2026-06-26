@@ -36,7 +36,11 @@ const Header = ({
     const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
     const handleLogoutClick = () => {
-        setShowLogoutConfirm(true);
+        if (onLogout) {
+            onLogout();
+        } else {
+            setShowLogoutConfirm(true);
+        }
     };
 
     const confirmLogout = () => {
@@ -57,7 +61,7 @@ const Header = ({
         ? `${currentTime.getDate()} ${months[currentTime.getMonth()]} ${currentTime.getFullYear()}`
         : '';
     const timeText = currentTime
-        ? `${String(currentTime.getHours()).padStart(2, '0')}.${String(currentTime.getMinutes()).padStart(2, '0')}`
+        ? `${String(currentTime.getHours()).padStart(2, '0')}.${String(currentTime.getMinutes()).padStart(2, '0')} WITA`
         : '--.--';
 
     return (

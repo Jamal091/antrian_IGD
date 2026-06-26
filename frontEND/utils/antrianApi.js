@@ -1,14 +1,17 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3330/';
+const API_BASE_URL = typeof window !== 'undefined' ? `http://${window.location.hostname}:5000/` : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/');
 
 const joinUrl = (path) => {
     return `${API_BASE_URL.replace(/\/$/, '')}/${path.replace(/^\//, '')}`;
 };
 
 export const antrianRequest = async (path, options = {}) => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    
     const response = await fetch(joinUrl(path), {
         ...options,
         headers: {
             ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
             ...(options.headers || {}),
         },
         cache: 'no-store',

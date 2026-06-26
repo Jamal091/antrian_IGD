@@ -40,10 +40,21 @@ const playQueueAudioSequence = async (queueNumber, loketName = 'admisi1') => {
         withBasePath('/sounds/nomor_antrian.mp3'),
         withBasePath(`/sounds/${prefix}.mp3`),
         ...numbers.map(n => withBasePath(`/sounds/${n}.mp3`)),
-        withBasePath('/sounds/silahkan_ke_loket.mp3'),
-        withBasePath(`/sounds/${loketName}.mp3`),
-        withBasePath('/sounds/out.mp3')
+        withBasePath('/sounds/silahkan_ke_loket.mp3')
     ];
+
+    if (loketName === 'admisi1' || loketName === 'Loket Pendaftaran IGD') {
+        playlist.push(withBasePath('/sounds/pendaftaran.mp3'));
+        playlist.push(withBasePath('/sounds/igd.mp3'));
+    } else if (loketName === 'admisi2' || loketName === 'Loket Pendaftaran Rawat Inap') {
+        playlist.push(withBasePath('/sounds/pendaftaran.mp3'));
+        playlist.push(withBasePath('/sounds/ranap.mp3'));
+        playlist.push(withBasePath('/sounds/inap.mp3'));
+    } else {
+        playlist.push(withBasePath(`/sounds/${loketName}.mp3`));
+    }
+
+    playlist.push(withBasePath('/sounds/out.mp3'));
 
     for (const src of playlist) {
         await playSound(src);

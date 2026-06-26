@@ -48,6 +48,14 @@ export default function QueueDisplay({ loketName = 'Loket 1 Admisi IGD' }) {
                     glow: 'shadow-red-200',
                     label: 'EMERGENCY',
                 };
+            case 'R':
+                return {
+                    bg: 'bg-blue-50',
+                    text: 'text-blue-700',
+                    border: 'border-blue-300',
+                    glow: 'shadow-blue-200',
+                    label: 'RAWAT INAP',
+                };
             default:
                 return {
                     bg: 'bg-gray-50',
@@ -60,7 +68,10 @@ export default function QueueDisplay({ loketName = 'Loket 1 Admisi IGD' }) {
     }, []);
 
     const getLoketAudioName = useCallback(() => {
-        return loketName.includes('2') ? 'admisi2' : 'admisi1';
+        if (loketName === 'Loket Pendaftaran Rawat Inap' || loketName === 'Loket Rawat Inap' || loketName.includes('2')) {
+            return 'admisi2';
+        }
+        return 'admisi1';
     }, [loketName]);
 
     const handleEnableAudio = useCallback(async () => {
@@ -135,8 +146,11 @@ export default function QueueDisplay({ loketName = 'Loket 1 Admisi IGD' }) {
             setIsAnimating(false);
         }, 5000);
 
-        if (shouldPlayAudio && isAudioEnabled) {
-            playQueueAudio(currentTicket.number, getLoketAudioName()).catch(() => {
+        if (shouldPlayAudio) {
+            playQueueAudio(currentTicket.number, getLoketAudioName()).then(() => {
+                setIsAudioEnabled(true);
+                setAudioMessage('');
+            }).catch(() => {
                 setIsAudioEnabled(false);
                 setAudioMessage('Audio diblokir browser');
             });

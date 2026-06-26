@@ -121,6 +121,7 @@ export default function CallerPage() {
             setWaitingList({
                 IGD: data.IGD || [],
                 EMERGENCY: data.EMERGENCY || [],
+                RANAP: data.RANAP || [],
             });
         } catch (error) {
             showNotification(error.message || 'Gagal memuat daftar antrean');
@@ -198,30 +199,21 @@ export default function CallerPage() {
     }, [currentCall, myCounter, showNotification, syncCallLock]);
 
     // ── Call specific ticket ─────────────────────────────────
-    const handleCallSpecific = useCallback((ticket) => {
-        setConfirmConfig({
-            isOpen: true,
-            title: 'Panggil Antrian',
-            message: `Panggil nomor ${ticket.number} sekarang?`,
-            icon: 'campaign',
-            color: 'blue',
-            onConfirm: async () => {
-                setLoading(true);
+    const handleCallSpecific = useCallback(async (ticket) => {
+        setLoading(true);
 
-                try {
-                    const data = await callSpecificTicket(ticket, myCounter);
-                    syncCallLock(data);
-                    setCurrentCall(data.ticket);
-                    showNotification(`Memanggil Manual ${data.ticket.number}`);
-                    await loadWaitingList();
-                } catch (error) {
-                    syncCallLock(error.data);
-                    showNotification(error.message || 'Gagal memanggil antrean');
-                } finally {
-                    setLoading(false);
-                }
-            },
-        });
+        try {
+            const data = await callSpecificTicket(ticket, myCounter);
+            syncCallLock(data);
+            setCurrentCall(data.ticket);
+            showNotification(`Memanggil Manual ${data.ticket.number}`);
+            await loadWaitingList();
+        } catch (error) {
+            syncCallLock(error.data);
+            showNotification(error.message || 'Gagal memanggil antrean');
+        } finally {
+            setLoading(false);
+        }
     }, [loadWaitingList, myCounter, showNotification, syncCallLock]);
 
     // ── Close confirm modal ──────────────────────────────────
@@ -236,9 +228,11 @@ export default function CallerPage() {
     }, [router]);
 
     // ── Derived counts ───────────────────────────────────────
-    const igdCount = waitingList.IGD?.length || 0;
-    const emergencyCount = waitingList.EMERGENCY?.length || 0;
-    const totalWaiting = igdCount + emergencyCount;
+    const isRanap = myCounter === 'Loket Rawat Inap';
+    const igdCount = isRanap ? 0 : (waitingList.IGD?.length || 0);
+    const emergencyCount = isRanap ? 0 : (waitingList.EMERGENCY?.length || 0);
+    const ranapCount = !isRanap ? 0 : (waitingList.RANAP?.length || 0);
+    const totalWaiting = isRanap ? ranapCount : (igdCount + emergencyCount);
     const isCallLocked = Boolean(callLock?.is_locked);
     const callLockSeconds = Math.ceil((callLock?.remaining_ms || 0) / 1000);
     const callLockOwner = callLock?.locked_by || 'loket lain';
@@ -322,9 +316,11 @@ export default function CallerPage() {
                                     <span className={`text-xs font-bold px-3 py-1 rounded-full ${
                                         currentCall.type === 'EMERGENCY'
                                             ? 'bg-red-100 text-red-600'
+                                            : currentCall.type === 'RANAP'
+                                            ? 'bg-blue-100 text-blue-600'
                                             : 'bg-emerald-100 text-emerald-600'
                                     }`}>
-                                        {currentCall.type === 'EMERGENCY' ? 'EMERGENCY' : 'IGD'}
+                                        {currentCall.type === 'EMERGENCY' ? 'EMERGENCY' : currentCall.type === 'RANAP' ? 'RANAP' : 'IGD'}
                                     </span>
                                 </motion.div>
                             )}
@@ -343,7 +339,7 @@ export default function CallerPage() {
                             <button
                                 onClick={handleCallAuto}
                                 disabled={loading || isCallLocked || totalWaiting === 0}
-                                className="flex items-center justify-center gap-2 py-3 bg-[#00b7ad] text-white rounded-xl font-bold hover:bg-[#009e95] transition-all shadow-lg shadow-[#00b7ad]/30 disabled:opacity-40 disabled:shadow-none disabled:cursor-not-allowed text-sm sm:text-base"
+                                className="flex-1 flex items-center justify-center gap-2 py-3 bg-[#00b7ad] text-white rounded-xl font-bold hover:bg-[#009e95] transition-all shadow-lg shadow-[#00b7ad]/30 disabled:opacity-40 disabled:shadow-none disabled:cursor-not-allowed text-sm sm:text-base"
                             >
                                 <PlayCircle size={18} />
                                 Panggil Berikutnya
@@ -352,64 +348,97 @@ export default function CallerPage() {
                     </motion.div>
 
                     {/* ── Queue Type Cards ─────────────────────── */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                    {!isRanap && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
 
-                        {/* IGD */}
-                        <motion.div
-                            className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-gray-200 relative overflow-hidden group"
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.5, delay: 0.1 }}
-                        >
-                            <div className="absolute top-2 right-2 opacity-5 group-hover:opacity-10 transition-opacity">
-                                <HeartPulse size={80} className="text-emerald-500" />
-                            </div>
-                            <div className="flex items-center gap-2 mb-1 relative z-10">
-                                <span className="text-xs font-bold px-2 py-0.5 bg-emerald-100 text-emerald-600 rounded-md">I</span>
-                                <h3 className="text-base sm:text-lg font-bold text-gray-800">Antrian IGD</h3>
-                            </div>
-                            <div className="flex items-end gap-2 mb-5 relative z-10">
-                                <span className="text-4xl sm:text-5xl font-black text-emerald-600">{igdCount}</span>
-                                <span className="text-sm text-gray-400 mb-1.5 font-medium">Menunggu</span>
-                            </div>
-                            <button
-                                onClick={() => handleCallNext('IGD')}
-                                disabled={loading || isCallLocked || igdCount === 0}
-                                className="w-full py-3.5 bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-white rounded-xl font-bold shadow-lg shadow-emerald-500/25 transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:shadow-none disabled:cursor-not-allowed relative z-10 text-sm sm:text-base"
+                            {/* IGD */}
+                            <motion.div
+                                className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-gray-200 relative overflow-hidden group"
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ duration: 0.5, delay: 0.1 }}
                             >
-                                <Play size={18} />
-                                Panggil Berikutnya
-                            </button>
-                        </motion.div>
+                                <div className="absolute top-2 right-2 opacity-5 group-hover:opacity-10 transition-opacity">
+                                    <HeartPulse size={80} className="text-emerald-500" />
+                                </div>
+                                <div className="flex items-center gap-2 mb-1 relative z-10">
+                                    <span className="text-xs font-bold px-2 py-0.5 bg-emerald-100 text-emerald-600 rounded-md">I</span>
+                                    <h3 className="text-base sm:text-lg font-bold text-gray-800">Antrian IGD</h3>
+                                </div>
+                                <div className="flex items-end gap-2 mb-5 relative z-10">
+                                    <span className="text-4xl sm:text-5xl font-black text-emerald-600">{igdCount}</span>
+                                    <span className="text-sm text-gray-400 mb-1.5 font-medium">Menunggu</span>
+                                </div>
+                                <button
+                                    onClick={() => handleCallNext('IGD')}
+                                    disabled={loading || isCallLocked || igdCount === 0}
+                                    className="w-full py-3.5 bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-white rounded-xl font-bold shadow-lg shadow-emerald-500/25 transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:shadow-none disabled:cursor-not-allowed relative z-10 text-sm sm:text-base"
+                                >
+                                    <Play size={18} />
+                                    Panggil Berikutnya
+                                </button>
+                            </motion.div>
 
-                        {/* EMERGENCY */}
-                        <motion.div
-                            className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-gray-200 relative overflow-hidden group"
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.5, delay: 0.2 }}
-                        >
-                            <div className="absolute top-2 right-2 opacity-5 group-hover:opacity-10 transition-opacity">
-                                <Siren size={80} className="text-red-500" />
-                            </div>
-                            <div className="flex items-center gap-2 mb-1 relative z-10">
-                                <span className="text-xs font-bold px-2 py-0.5 bg-red-100 text-red-600 rounded-md">E</span>
-                                <h3 className="text-base sm:text-lg font-bold text-gray-800">Antrian Emergency</h3>
-                            </div>
-                            <div className="flex items-end gap-2 mb-5 relative z-10">
-                                <span className="text-4xl sm:text-5xl font-black text-red-500">{emergencyCount}</span>
-                                <span className="text-sm text-gray-400 mb-1.5 font-medium">Menunggu</span>
-                            </div>
-                            <button
-                                onClick={() => handleCallNext('EMERGENCY')}
-                                disabled={loading || isCallLocked || emergencyCount === 0}
-                                className="w-full py-3.5 bg-red-500 hover:bg-red-600 active:bg-red-700 text-white rounded-xl font-bold shadow-lg shadow-red-500/25 transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:shadow-none disabled:cursor-not-allowed relative z-10 text-sm sm:text-base"
+                            {/* EMERGENCY */}
+                            <motion.div
+                                className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-gray-200 relative overflow-hidden group"
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ duration: 0.5, delay: 0.2 }}
                             >
-                                <Play size={18} />
-                                Panggil Berikutnya
-                            </button>
-                        </motion.div>
-                    </div>
+                                <div className="absolute top-2 right-2 opacity-5 group-hover:opacity-10 transition-opacity">
+                                    <Siren size={80} className="text-red-500" />
+                                </div>
+                                <div className="flex items-center gap-2 mb-1 relative z-10">
+                                    <span className="text-xs font-bold px-2 py-0.5 bg-red-100 text-red-600 rounded-md">E</span>
+                                    <h3 className="text-base sm:text-lg font-bold text-gray-800">Antrian Emergency</h3>
+                                </div>
+                                <div className="flex items-end gap-2 mb-5 relative z-10">
+                                    <span className="text-4xl sm:text-5xl font-black text-red-500">{emergencyCount}</span>
+                                    <span className="text-sm text-gray-400 mb-1.5 font-medium">Menunggu</span>
+                                </div>
+                                <button
+                                    onClick={() => handleCallNext('EMERGENCY')}
+                                    disabled={loading || isCallLocked || emergencyCount === 0}
+                                    className="w-full py-3.5 bg-red-500 hover:bg-red-600 active:bg-red-700 text-white rounded-xl font-bold shadow-lg shadow-red-500/25 transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:shadow-none disabled:cursor-not-allowed relative z-10 text-sm sm:text-base"
+                                >
+                                    <Play size={18} />
+                                    Panggil Berikutnya
+                                </button>
+                            </motion.div>
+                        </div>
+                    )}
+                    {isRanap && (
+                        <div className="grid grid-cols-1 gap-4 sm:gap-6">
+                            {/* RANAP */}
+                            <motion.div
+                                className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-gray-200 relative overflow-hidden group"
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ duration: 0.5, delay: 0.1 }}
+                            >
+                                <div className="absolute top-2 right-2 opacity-5 group-hover:opacity-10 transition-opacity">
+                                    <HeartPulse size={80} className="text-blue-500" />
+                                </div>
+                                <div className="flex items-center gap-2 mb-1 relative z-10">
+                                    <span className="text-xs font-bold px-2 py-0.5 bg-blue-100 text-blue-600 rounded-md">R</span>
+                                    <h3 className="text-base sm:text-lg font-bold text-gray-800">Antrian Rawat Inap</h3>
+                                </div>
+                                <div className="flex items-end gap-2 mb-5 relative z-10">
+                                    <span className="text-4xl sm:text-5xl font-black text-blue-600">{ranapCount}</span>
+                                    <span className="text-sm text-gray-400 mb-1.5 font-medium">Menunggu</span>
+                                </div>
+                                <button
+                                    onClick={() => handleCallNext('RANAP')}
+                                    disabled={loading || isCallLocked || ranapCount === 0}
+                                    className="w-full py-3.5 bg-blue-500 hover:bg-blue-600 active:bg-blue-700 text-white rounded-xl font-bold shadow-lg shadow-blue-500/25 transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:shadow-none disabled:cursor-not-allowed relative z-10 text-sm sm:text-base"
+                                >
+                                    <Play size={18} />
+                                    Panggil Berikutnya
+                                </button>
+                            </motion.div>
+                        </div>
+                    )}
                 </div>
 
                 {/* RIGHT COLUMN: WAITING LIST */}
@@ -434,7 +463,7 @@ export default function CallerPage() {
                         {/* Waiting List Body */}
                         <div className="flex-1 overflow-y-auto p-2 space-y-1">
                             {/* Emergency Section */}
-                            {waitingList.EMERGENCY?.length > 0 && (
+                            {!isRanap && waitingList.EMERGENCY?.length > 0 && (
                                 <div className="mb-3">
                                     <div className="px-2 py-1.5 text-xs font-bold text-red-500 uppercase tracking-wider flex items-center gap-1.5">
                                         <Siren size={12} />
@@ -476,7 +505,7 @@ export default function CallerPage() {
                             )}
 
                             {/* IGD Section */}
-                            {waitingList.IGD?.length > 0 && (
+                            {!isRanap && waitingList.IGD?.length > 0 && (
                                 <div>
                                     <div className="px-2 py-1.5 text-xs font-bold text-emerald-600 uppercase tracking-wider flex items-center gap-1.5">
                                         <HeartPulse size={12} />
@@ -508,6 +537,48 @@ export default function CallerPage() {
                                                 onClick={() => handleCallSpecific(ticket)}
                                                 disabled={loading || isCallLocked}
                                                 className="opacity-0 group-hover:opacity-100 px-2.5 py-1.5 bg-white border border-emerald-200 text-emerald-600 text-xs font-bold rounded-lg shadow-sm hover:bg-emerald-500 hover:text-white hover:border-emerald-500 transition-all transform scale-95 group-hover:scale-100"
+                                            >
+                                                <Phone size={12} className="inline mr-1" />
+                                                Panggil
+                                            </button>
+                                        </motion.div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* RANAP Section */}
+                            {isRanap && waitingList.RANAP?.length > 0 && (
+                                <div>
+                                    <div className="px-2 py-1.5 text-xs font-bold text-blue-600 uppercase tracking-wider flex items-center gap-1.5">
+                                        <HeartPulse size={12} />
+                                        Rawat Inap
+                                    </div>
+                                    {waitingList.RANAP.map((ticket) => (
+                                        <motion.div
+                                            key={ticket.id}
+                                            layout
+                                            initial={{ opacity: 0, x: 10 }}
+                                            animate={{ opacity: 1, x: 0 }}
+                                            exit={{ opacity: 0, x: -10 }}
+                                            className="group flex items-center justify-between p-2.5 sm:p-3 rounded-xl hover:bg-blue-50 border border-transparent hover:border-blue-100 transition-all mb-1 cursor-default"
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs shadow-sm">
+                                                    {ticket.number.split('-')[1]}
+                                                </div>
+                                                <div>
+                                                    <span className="font-bold text-gray-800 block leading-tight text-sm">
+                                                        {ticket.number}
+                                                    </span>
+                                                    <span className="text-[10px] text-gray-400 font-mono">
+                                                        {ticket.time}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <button
+                                                onClick={() => handleCallSpecific(ticket)}
+                                                disabled={loading || isCallLocked}
+                                                className="opacity-0 group-hover:opacity-100 px-2.5 py-1.5 bg-white border border-blue-200 text-blue-600 text-xs font-bold rounded-lg shadow-sm hover:bg-blue-500 hover:text-white hover:border-blue-500 transition-all transform scale-95 group-hover:scale-100"
                                             >
                                                 <Phone size={12} className="inline mr-1" />
                                                 Panggil

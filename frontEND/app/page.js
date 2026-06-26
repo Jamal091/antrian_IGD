@@ -5,7 +5,6 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { Lock, User, LogIn } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { findLoketAccount } from '@/utils/loketAccounts';
 import { withBasePath } from '@/utils/basePath';
 
 export default function LoginPage() {
@@ -15,27 +14,51 @@ export default function LoginPage() {
     const [loading, setLoading] = useState(false);
     const [errorMessage, setErrorMessage] = useState('');
 
-    const handleLogin = (e) => {
+    const handleLogin = async (e) => {
         e.preventDefault();
         setLoading(true);
         setErrorMessage('');
 
-        setTimeout(() => {
-            const account = findLoketAccount(username, password);
-            setLoading(false);
+        try {
+            // Coba cek ke database backend (untuk Admin/Petugas DB)
+            const API_URL = typeof window !== 'undefined' ? `http://${window.location.hostname}:5000` : 'http://localhost:5000';
+            const res = await fetch(`${API_URL}/auth/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password }),
+            });
 
-            if (!account) {
-                setErrorMessage('Username atau password tidak sesuai');
-                return;
+            const data = await res.json();
+
+            if (!res.ok) {
+                throw new Error(data.error || 'Username atau password tidak sesuai');
             }
 
-            window.sessionStorage.setItem('callerSession', JSON.stringify({
-                username: account.username,
-                name: account.name,
-                counterName: account.counterName,
-            }));
-            router.push('/caller');
-        }, 1000);
+            // Simpan token untuk admin atau petugas
+            localStorage.setItem('token', data.token);
+            localStorage.setItem('user', JSON.stringify(data.user));
+
+            if (data.user.role === 'Admin') {
+                router.push('/admin/dashboard');
+            } else {
+                // Tentukan nama loket berdasarkan Role
+                let counterName = `Loket ${data.user.username.toUpperCase()}`;
+                if (data.user.role === 'Loket IGD') counterName = 'Loket IGD';
+                else if (data.user.role === 'Loket Rawat Inap') counterName = 'Loket Rawat Inap';
+
+                window.sessionStorage.setItem('callerSession', JSON.stringify({
+                    username: data.user.username,
+                    name: `Petugas ${data.user.username}`,
+                    counterName: counterName,
+                }));
+                router.push('/caller');
+            }
+
+        } catch (error) {
+            setErrorMessage(error.message || 'Username atau password tidak sesuai');
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (

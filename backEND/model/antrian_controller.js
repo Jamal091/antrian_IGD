@@ -5,6 +5,7 @@ const pool = antrianDb.db.promise();
 const VALID_TYPES = {
     IGD: { prefix: 'I', label: 'PASIEN IGD' },
     EMERGENCY: { prefix: 'E', label: 'PASIEN EMERGENCY' },
+    RANAP: { prefix: 'R', label: 'PASIEN RAWAT INAP' },
 };
 
 const WAITING = 'WAITING';
@@ -221,7 +222,7 @@ const formatTicket = (ticket) => {
 };
 
 const groupWaitingTickets = (tickets) => {
-    const grouped = { IGD: [], EMERGENCY: [] };
+    const grouped = { IGD: [], EMERGENCY: [], RANAP: [] };
 
     tickets.forEach((ticket) => {
         if (!grouped[ticket.type]) grouped[ticket.type] = [];
@@ -438,7 +439,8 @@ exports.getWaiting = handleAsync(async (req, res) => {
                 CASE type
                     WHEN 'EMERGENCY' THEN 0
                     WHEN 'IGD' THEN 1
-                    ELSE 2
+                    WHEN 'RANAP' THEN 2
+                    ELSE 3
                 END,
                 sequence ASC
             LIMIT ?
@@ -454,10 +456,12 @@ exports.getWaiting = handleAsync(async (req, res) => {
         summary: {
             IGD: grouped.IGD.length,
             EMERGENCY: grouped.EMERGENCY.length,
+            RANAP: grouped.RANAP.length,
             total: rows.length,
         },
         IGD: grouped.IGD,
         EMERGENCY: grouped.EMERGENCY,
+        RANAP: grouped.RANAP,
     });
 });
 
@@ -476,6 +480,7 @@ exports.getSummary = handleAsync(async (req, res) => {
     const summary = {
         IGD: { WAITING: 0, CALLED: 0, DONE: 0, CANCELLED: 0, total: 0 },
         EMERGENCY: { WAITING: 0, CALLED: 0, DONE: 0, CANCELLED: 0, total: 0 },
+        RANAP: { WAITING: 0, CALLED: 0, DONE: 0, CANCELLED: 0, total: 0 },
         total: 0,
     };
 
@@ -572,18 +577,24 @@ exports.callAuto = handleAsync(async (req, res) => {
             });
         }
 
+        let typeCondition = "AND type IN ('EMERGENCY', 'IGD')";
+        if (counterName === 'Loket Rawat Inap') {
+            typeCondition = "AND type IN ('RANAP')";
+        }
+
         const [rows] = await connection.query(
             `
                 SELECT ${ticketColumns}
                 FROM antrian_tickets
                 WHERE ticket_date = ?
                   AND status = ?
-                  AND type IN ('EMERGENCY', 'IGD')
+                  ${typeCondition}
                 ORDER BY
                     CASE type
                         WHEN 'EMERGENCY' THEN 0
                         WHEN 'IGD' THEN 1
-                        ELSE 2
+                        WHEN 'RANAP' THEN 2
+                        ELSE 3
                     END,
                     sequence ASC
                 LIMIT 1
@@ -837,5 +848,81 @@ exports.cancelTicket = handleAsync(async (req, res) => {
     res.json({
         message: `Antrean ${ticket.number} dibatalkan`,
         ticket: formatTicket(ticket),
+    });
+});
+
+exports.getLaporan = handleAsync(async (req, res) => {
+    const startDate = getTicketDate(req.query?.startDate || req.query?.date);
+    const endDate = getTicketDate(req.query?.endDate || startDate);
+    const loket = req.query?.loket || 'Semua Loket';
+
+    let loketCondition = '';
+    let params = [startDate, endDate];
+    if (loket && loket !== 'Semua Loket') {
+        loketCondition = 'AND counter_name = ?';
+        params.push(loket);
+    }
+
+    const [rows] = await pool.query(
+        `
+            SELECT ${ticketColumns}
+            FROM antrian_tickets
+            WHERE ticket_date >= ? AND ticket_date <= ?
+            ${loketCondition}
+            ORDER BY ticket_date ASC, id ASC
+        `,
+        params
+    );
+
+    const data = {
+        total: rows.length,
+        selesai: rows.filter(r => r.status === DONE).length,
+        menunggu: rows.filter(r => r.status === WAITING).length,
+        dipanggil: rows.filter(r => r.status === CALLED).length,
+        igd: rows.filter(r => r.type === 'IGD').length,
+        emergency: rows.filter(r => r.type === 'EMERGENCY').length,
+        ranap: rows.filter(r => r.type === 'RANAP').length,
+        tickets: rows.map(formatTicket),
+        trenHarian: {},
+        trenPerJam: {},
+        distribusiLoket: {}
+    };
+
+    rows.forEach(r => {
+        // Tren Harian
+        if (!data.trenHarian[r.ticket_date]) {
+            data.trenHarian[r.ticket_date] = { IGD: 0, EMERGENCY: 0, RANAP: 0, total: 0 };
+        }
+        data.trenHarian[r.ticket_date][r.type]++;
+        data.trenHarian[r.ticket_date].total++;
+
+        // Tren Per Jam
+        if (r.time) {
+            const hour = r.time.split(':')[0];
+            let hourInt = parseInt(hour, 10);
+            if (hourInt % 2 !== 0) hourInt -= 1;
+            const hourKey = `${hourInt.toString().padStart(2, '0')}:00`;
+            if (!data.trenPerJam[hourKey]) {
+                data.trenPerJam[hourKey] = { IGD: 0, EMERGENCY: 0, RANAP: 0, total: 0 };
+            }
+            data.trenPerJam[hourKey][r.type]++;
+            data.trenPerJam[hourKey].total++;
+        }
+
+        // Distribusi Loket
+        const loketKey = r.counter_name || 'Belum Dipanggil';
+        if (!data.distribusiLoket[loketKey]) {
+            data.distribusiLoket[loketKey] = { IGD: 0, EMERGENCY: 0, RANAP: 0, selesai: 0, total: 0 };
+        }
+        data.distribusiLoket[loketKey][r.type]++;
+        data.distribusiLoket[loketKey].total++;
+        if (r.status === DONE) data.distribusiLoket[loketKey].selesai++;
+    });
+
+    res.json({
+        startDate,
+        endDate,
+        loket,
+        data
     });
 });
